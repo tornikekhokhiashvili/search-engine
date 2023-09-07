@@ -18,7 +18,6 @@ TODO: implement subclasses of asset as described bellow
 abstract class Asset {
 
     enum class Type {
-
         /**
          * Video on demand (movies, serials, trailers e.t.c). This is just a simple video file,
          * which are stored on the server and can be converted to the video stream.
@@ -35,7 +34,17 @@ abstract class Asset {
          * All people, who are participated in video making process
          * (actors, director, operator e.t.c).
          */
-        CREW
+        CREW;
+
+
+        fun toGroupName(): String {
+            return when (this) {
+                Type.VOD -> "-- Movies --"
+                Type.LIVE -> "-- TvChannels --"
+                Type.CREW -> "-- Cast and Crew --"
+                else->"null"
+            }
+        }
     }
 
     abstract val type: Type
@@ -43,4 +52,35 @@ abstract class Asset {
     /** Title of the asset, which holds all necessary information about the asset*/
     //TODO: should be used in [SearchApi] to match search query.
     abstract fun getPoster(): String
+    data class Movie(val name: String, val releaseYear: Long) : Asset() {
+        override val type: Type = Type.VOD
+
+        override fun getPoster(): String {
+            return "$name (${releaseYearToDateString(releaseYear)})"
+        }
+    }
+    data class TvChannel(val channelNumber: Int, val name: String) : Asset() {
+        override val type: Type = Type.LIVE
+
+        override fun getPoster(): String {
+            return "№$channelNumber. $name"
+        }
+    }
+    data class Cast(val name: String, val filmCount: Int) : Asset() {
+        override val type: Type = Type.CREW
+
+        override fun getPoster(): String {
+            return "$name ($filmCount films)"
+        }
+    }
+
+    fun releaseYearToDateString(releaseYear: Long): String {
+        // Convert Unix timestamp to a human-readable date format
+        // You can use a date formatting library or Kotlin's Date/Time API here
+        // For simplicity, this example assumes a simple conversion
+        val date = java.util.Date(releaseYear)
+        val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy")
+        return dateFormat.format(date)
+    }
+
 }

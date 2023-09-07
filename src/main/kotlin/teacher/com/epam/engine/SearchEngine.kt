@@ -1,7 +1,7 @@
 package teacher.com.epam.engine
 
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.*
 import teacher.com.epam.api.Asset
 import teacher.com.epam.repository.SearchRepository
 
@@ -22,9 +22,41 @@ class SearchEngine(
 ) {
     private val regex: Regex = Regex("(\\?\\w{3,4}\$)")
 
-    suspend fun searchContentAsync(rawInput: String): Flow<SearchResult> = TODO()
-}
+    suspend fun searchContentAsync(rawInput: String): Flow<SearchResult> {
+        return flow {
+            val (queryText, typeString) = parseQueryAndType(rawInput)
+            val assetType = mapTypeStringToAssetType(typeString)
+            val query = Query(queryText, typeString)
+            val results = repository.searchContentAsync(query).toList()
+            val groupName = assetType.toGroupName()
+            val searchResult = SearchResult(results, assetType, groupName)
 
+            emit(searchResult)
+        }.flowOn(dispatcher)
+    }
+    private fun parseQueryAndType(rawInput: String): Pair<String, String?> {
+        val match = regex.find(rawInput)
+        val query = match?.let { rawInput.substring(0, it.range.start).trim() } ?: rawInput.trim()
+        val typeString = match?.let { it.value.substring(1) }
+        return Pair(query, typeString)
+    }
+    private fun mapTypeStringToAssetType(typeString: String?): Asset.Type {
+//        return when (typeString) {
+//            "VOD" -> Asset.Type.VOD
+//            "LIVE" -> Asset.Type.LIVE
+//            "CREW" -> Asset.Type.CREW
+//        }
+        if (typeString == "VOD") {
+            return Asset.Type.VOD
+        } else if (typeString == "LIVE") {
+            return Asset.Type.LIVE
+        } else if (typeString == "CREW") {
+            return Asset.Type.CREW
+        }else return Asset.Type.VOD
+
+    }
+}
+data class Query(val text: String, val type: String?)
 private fun Asset.Type.toGroupName(): String {
     return when (this) {
         Asset.Type.VOD -> "-- Movies --"
