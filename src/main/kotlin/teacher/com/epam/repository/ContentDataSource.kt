@@ -7,20 +7,17 @@ import teacher.com.epam.api.Asset.Type
 
 @ExperimentalCoroutinesApi
 class ContentDataSource: SearchRepository {
-    override suspend fun searchContentAsync(query: teacher.com.epam.engine.Query): Flow<Asset> {
-        // Simulate a list of assets (replace with actual data source)
+    override  fun searchContentAsync(query: teacher.com.epam.engine.Query): Flow<Asset> {
         val assetList = listOf(
             Asset.Cast("Adriana Ferdynand", 1),
             Asset.Cast("Walenty Kuba", 2) ,
             Asset.Movie("Harry Potter and the Sorcerer's Stone", 1005861600000L),
             Asset.Movie("28 Weeks Later", 1178830800000L)
         )
-
-        // Filter assets based on the query type
         val filteredAssets = assetList.filter { asset ->
             when (Query.typeVOD) {
                 Type.VOD -> asset is Asset.Movie
-                else -> true // Include all assets when type is null
+                else -> true
             }
             when(Query.typeCREW){
                 Type.CREW -> asset is Asset.Cast
@@ -31,8 +28,6 @@ class ContentDataSource: SearchRepository {
                 else->true
             }
         }
-
-        // Convert the filtered assets to a Flow and return
         return filteredAssets.asFlow()
     }
 

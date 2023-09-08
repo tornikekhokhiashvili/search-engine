@@ -22,7 +22,7 @@ class SearchEngine(
 ) {
     private val regex: Regex = Regex("(\\?\\w{3,4}\$)")
 
-    suspend fun searchContentAsync(rawInput: String): Flow<SearchResult> {
+     fun searchContentAsync(rawInput: String): Flow<SearchResult> {
         return flow {
             val (queryText, typeString) = parseQueryAndType(rawInput)
             val assetType = mapTypeStringToAssetType(typeString)
@@ -41,11 +41,6 @@ class SearchEngine(
         return Pair(query, typeString)
     }
     private fun mapTypeStringToAssetType(typeString: String?): Asset.Type {
-//        return when (typeString) {
-//            "VOD" -> Asset.Type.VOD
-//            "LIVE" -> Asset.Type.LIVE
-//            "CREW" -> Asset.Type.CREW
-//        }
         if (typeString == "VOD") {
             return Asset.Type.VOD
         } else if (typeString == "LIVE") {
