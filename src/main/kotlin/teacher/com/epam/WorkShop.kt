@@ -1,10 +1,11 @@
 package teacher.com.epam
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.onEmpty
 import kotlinx.coroutines.runBlocking
-import teacher.com.epam.api.Asset
-import teacher.com.epam.engine.SearchResult
+import teacher.com.epam.engine.SearchEngine
 
 /*
 TODO: write a program, which should read user's input and shows the result.
@@ -12,66 +13,52 @@ TODO: write a program, which should read user's input and shows the result.
     * your implementation should use [DependencyProvider] to obtain objects.
  */
 
-@kotlinx.coroutines.ExperimentalCoroutinesApi
-fun main() = runBlocking {
-    val dispatcher = Dispatchers.IO
-    val searchEngine = DependencyProvider.provideEngine(dispatcher)
+@ExperimentalCoroutinesApi
+var isRunning = true
 
+@OptIn(ExperimentalCoroutinesApi::class)
+fun main() = runBlocking {
+    val engine = DependencyProvider.provideEngine(Dispatchers.IO)
     println("Welcome to the Online Cinema Search Engine!")
     println("Type 'exit' to quit the program.")
-
-    var userInput: String? = readLine()
-
-    while (userInput != null && !userInput.isEndProgram()) {
-        if (userInput.isNotBlank()) {
-            val searchResults = searchEngine.searchContentAsync(userInput)
-            searchResults.collect { result ->
-                displaySearchResult(result)
-            }
-        } else {
-            println("Error: Please enter a valid search query.")
+    while (isRunning) {
+        print("TYPE REQUEST: ")
+        val query = readLine().orEmpty()
+        when {
+            query.isEndProgram() -> proceedExit()
+            else -> proceedSearch(query, engine)
         }
+    }
+}
+    @ExperimentalCoroutinesApi
+    private suspend fun proceedSearch(query: String, repository: SearchEngine) {
+        try {
+            println("Start searching...")
+            repository.searchContentAsync(query)
+                .onEmpty { println("Sorry, but we found nothing") }
+                .collectIndexed { index, result ->
+                    if (index == 0) {
+                        println("Result is:")
+                    }
+                    println(result.groupName)
+                    result.assets.forEach { println(it.toString()) }
+                }
 
-        userInput = readLine()
+        } catch (error: Throwable) {
+            proceedError(error)
+        }
     }
 
-    println("Goodbye! Thanks for using the Online Cinema Search Engine.")
-}
-
+    fun proceedError(error: Throwable) {
+        val errorMessage = when (error) {
+            is IllegalArgumentException -> "Invalid asset type in request"
+            else -> error.message ?: "Something went wrong"
+        }
+        println("$errorMessage. Please, try again")
+    }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun proceedExit() {
+        isRunning = false
+        println("Thank you for choosing out service. See you next time")
+    }
 private fun String.isEndProgram(): Boolean = this.equals("exit", ignoreCase = true)
-private fun displaySearchResult(result: SearchResult) {
-    println("Search results for ${result.type.toGroupName()}:")
-    println(result.groupName)
-
-    if (result.assets.isEmpty()) {
-        println("No results found.")
-    } else {
-        result.assets.forEach { asset ->
-            when (asset.type) {
-                Asset.Type.VOD -> displayMovie(asset)
-                Asset.Type.LIVE -> displayTvChannel(asset)
-                Asset.Type.CREW -> displayCast(asset)
-            }
-        }
-    }
-
-    println("---------------")
-}
-
-private fun displayMovie(asset: Asset) {
-    if (asset is Asset.Movie) {
-        println("Movie: ${asset.name} (${asset.releaseYear})")
-    }
-}
-
-private fun displayTvChannel(asset: Asset) {
-    if (asset is Asset.TvChannel) {
-        println("TV Channel: ${asset.channelNumber}. ${asset.name}")
-    }
-}
-
-private fun displayCast(asset: Asset) {
-    if (asset is Asset.Cast) {
-        println("Cast: ${asset.name} (${asset.filmCount} films)")
-    }
-}

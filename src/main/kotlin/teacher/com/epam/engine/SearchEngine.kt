@@ -3,6 +3,7 @@ package teacher.com.epam.engine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.*
 import teacher.com.epam.api.Asset
+import teacher.com.epam.repository.Query
 import teacher.com.epam.repository.SearchRepository
 
 /**
@@ -23,35 +24,39 @@ class SearchEngine(
     private val regex: Regex = Regex("(\\?\\w{3,4}\$)")
 
      fun searchContentAsync(rawInput: String): Flow<SearchResult> {
-        return flow {
-            val (queryText, typeString) = parseQueryAndType(rawInput)
-            val assetType = mapTypeStringToAssetType(typeString)
-            val query = Query(queryText, typeString)
-            val results = repository.searchContentAsync(query).toList()
-            val groupName = assetType.toGroupName()
-            val searchResult = SearchResult(results, assetType, groupName)
+         validateInput(rawInput)
+         val matchResult: MatchResult? = regex.find(rawInput)
+         val assetType = matchResult?.value.toAssetType()
+         val input = assetType?.let { rawInput.removeRange(matchResult!!.range) } ?: rawInput
+         val query = input.toQuery(assetType)
 
-            emit(searchResult)
-        }.flowOn(dispatcher)
+         return repository.searchContentAsync(query)
+             .flowOn(dispatcher)
+             .map { asset -> SearchResult(
+                 listOf(asset),
+                 asset.type, asset.type.toGroupName()) }}
     }
-    private fun parseQueryAndType(rawInput: String): Pair<String, String?> {
-        val match = regex.find(rawInput)
-        val query = match?.let { rawInput.substring(0, it.range.start).trim() } ?: rawInput.trim()
-        val typeString = match?.let { it.value.substring(1) }
-        return Pair(query, typeString)
-    }
-    private fun mapTypeStringToAssetType(typeString: String?): Asset.Type {
-        if (typeString == "VOD") {
-            return Asset.Type.VOD
-        } else if (typeString == "LIVE") {
-            return Asset.Type.LIVE
-        } else if (typeString == "CREW") {
-            return Asset.Type.CREW
-        }else return Asset.Type.VOD
-
+private fun validateInput(rawInput: String) {
+    require(rawInput != "@" && rawInput.isNotBlank()) { "Incorrect input" }
+}
+private fun String?.toAssetType(): Asset.Type? {
+    return this?.drop(1)?.toUpperCase()?.let {
+        Asset.Type.valueOf(it)
     }
 }
-data class Query(val text: String, val type: String?)
+private fun String.toQuery(assetType: Asset.Type?): Query {
+    return if (startsWith("@")) {
+        assetType?.let {
+            Query.TypedStartedWith(drop(1), assetType)
+        } ?: Query.RawStartedWith(drop(1))
+
+    } else {
+        assetType?.let {
+            Query.TypedContains(this, assetType)
+        } ?: Query.RawContains(this)
+    }
+
+}
 private fun Asset.Type.toGroupName(): String {
     return when (this) {
         Asset.Type.VOD -> "-- Movies --"

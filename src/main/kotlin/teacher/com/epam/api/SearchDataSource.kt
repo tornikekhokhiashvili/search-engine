@@ -1,67 +1,48 @@
 package teacher.com.epam.api
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import teacher.com.epam.api.factory.ContentFactory
+import teacher.com.epam.api.factory.CastFactory
+import teacher.com.epam.api.factory.MovieFactory
+import teacher.com.epam.api.factory.TvChannelFactory
 
 @ExperimentalCoroutinesApi
 class SearchDataSource(
-    private val movieFactory: ContentFactory<Asset.Movie>,
-    private val tvChannelFactory: ContentFactory<Asset.TvChannel>,
-    private val castFactory: ContentFactory<Asset.Cast>
+    private val movieFactory: MovieFactory,
+    private val tvChannelFactory: TvChannelFactory,
+    private val castFactory: CastFactory
 ):SearchApi {
     override fun searchByContains(query: String): Flow<Asset> {
-        return searchAllContentFactories(query) { it.contains(query, ignoreCase = true) }
+        return mergeContent().delayOnEach()
+            .filter { it.getPoster().contains(query, true) }
     }
 
     override fun searchByContains(query: String, type: Asset.Type): Flow<Asset> {
-        return when (type) {
-            Asset.Type.VOD -> flow {
-                val assets = searchContentFactory(movieFactory) { it.contains(query, ignoreCase = true) }
-                emitAll(assets)
-            }
-            Asset.Type.LIVE -> flow {
-                val assets = searchContentFactory(tvChannelFactory) { it.contains(query, ignoreCase = true) }
-                emitAll(assets)
-            }
-            Asset.Type.CREW -> flow {
-                val assets = searchContentFactory(castFactory) { it.contains(query, ignoreCase = true) }
-                emitAll(assets)
-            }
-        }
+        return getTypeFlow(type).delayOnEach()
+            .filter { it.getPoster().contains(query, true ) }
     }
 
     override  fun searchByStartWith(query: String): Flow<Asset> {
-        return searchAllContentFactories(query) { it.startsWith(query, ignoreCase = true) }
+        return mergeContent().delayOnEach()
+            .filter { it.getPoster().startsWith(query, true) }
     }
 
     override  fun searchByStartWith(query: String, type: Asset.Type): Flow<Asset> {
+        return getTypeFlow(type).delayOnEach()
+            .filter { it.getPoster().startsWith(query, true) }
+    }
+    private fun mergeContent() = merge(
+        movieFactory.provideContent(),
+        tvChannelFactory.provideContent(),
+        castFactory.provideContent()
+    )
+    private fun getTypeFlow(type: Asset.Type): Flow<Asset> {
         return when (type) {
-            Asset.Type.VOD -> flow {
-                val assets = searchContentFactory(movieFactory) { it.startsWith(query, ignoreCase = true) }
-                emitAll(assets)
-            }
-            Asset.Type.LIVE -> flow {
-                val assets = searchContentFactory(tvChannelFactory) { it.startsWith(query, ignoreCase = true) }
-                emitAll(assets)
-            }
-            Asset.Type.CREW -> flow {
-                val assets = searchContentFactory(castFactory) { it.startsWith(query, ignoreCase = true) }
-                emitAll(assets)
-            }
+            Asset.Type.VOD -> movieFactory.provideContent()
+            Asset.Type.LIVE -> tvChannelFactory.provideContent()
+            Asset.Type.CREW -> castFactory.provideContent()
         }
     }
-    private  fun searchAllContentFactories(query: String, predicate: (String) -> Boolean): Flow<Asset> {
-        val movieFlow = movieFactory.provideContent().filter { predicate(it.getPoster()) }
-        val tvChannelFlow = tvChannelFactory.provideContent().filter { predicate(it.getPoster()) }
-        val castFlow = castFactory.provideContent().filter { predicate(it.getPoster()) }
-
-        return flowOf(movieFlow, tvChannelFlow, castFlow).flatMapConcat { it }
-    }
-    private fun <T : Asset> searchContentFactory(
-        contentFactory: ContentFactory<T>,
-        predicate: (String) -> Boolean
-    ): Flow<Asset> {
-        return contentFactory.provideContent().filter { predicate(it.getPoster()) }
-    }
+    private fun Flow<Asset>.delayOnEach() = onEach { delay(100L) }
 }
